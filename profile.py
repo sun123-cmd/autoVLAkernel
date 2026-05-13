@@ -22,6 +22,7 @@ import os
 import pickle
 import re
 import sys
+import sysconfig
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,27 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+
+
+def _ensure_stdlib_profile_module() -> None:
+    """Prevent this file from shadowing the stdlib `profile` module."""
+    stdlib_dir = sysconfig.get_path("stdlib")
+    existing = sys.modules.get("profile")
+    if existing is not None:
+        mod_file = getattr(existing, "__file__", "") or ""
+        if mod_file.startswith(stdlib_dir) and hasattr(existing, "run"):
+            return
+
+    spec = importlib.machinery.PathFinder.find_spec("profile", [stdlib_dir])
+    if spec is None or spec.loader is None:
+        return
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    sys.modules["profile"] = module
+
+
+_ensure_stdlib_profile_module()
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -99,6 +121,7 @@ def _fallback_detect_gpu() -> GPUSpec:
 
     # Known GPUs: name_fragment -> (peak_fp16_tflops, peak_bandwidth_gb_s, l2_cache_mb)
     _KNOWN_GPUS: Dict[str, Tuple[float, float, float]] = {
+        "PRO 6000:   (1001.0, 1792.0, 128.0),"
         "H100 SXM":  (989.5, 3352.0, 50.0),
         "H100 PCIe": (756.0, 2039.0, 50.0),
         "H100":      (756.0, 2039.0, 50.0),
@@ -312,6 +335,11 @@ def load_model(args: argparse.Namespace) -> Tuple[nn.Module, str]:
 
 def _is_language_model(model: nn.Module) -> bool:
     """Heuristic: does the model expect input_ids (integer tokens)?"""
+    if getattr(model, "autokernel_force_generic_input", False):
+        return False
+    if getattr(model, "autokernel_force_language_input", False):
+        return True
+
     # Check common class names
     cls_name = type(model).__name__.lower()
     lm_indicators = [

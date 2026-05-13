@@ -101,6 +101,7 @@ class GPUSpec:
 
 # Known GPU database: name_fragment -> (peak_fp16_tflops, peak_bandwidth_gb_s, l2_cache_mb)
 _KNOWN_GPUS: Dict[str, Tuple[float, float, float]] = {
+    "PRO 6000":   (1001.0, 1792.0, 128.0),
     "H100 SXM":   (989.5,  3352.0, 50.0),
     "H100 PCIe":  (756.0,  2039.0, 50.0),
     "H100":       (756.0,  2039.0, 50.0),   # fallback for H100 variants

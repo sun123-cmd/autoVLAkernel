@@ -23,7 +23,7 @@ Each experiment takes ~90 seconds. That's ~40 experiments/hour, ~320 overnight, 
 
 ## Quick Start
 
-**Requirements:** NVIDIA GPU (tested on H100/A100/RTX 4090), Python 3.10+, [uv](https://docs.astral.sh/uv/).
+**Requirements:** NVIDIA GPU (tested on H100/A100/RTX 4090), Python 3.11+, [uv](https://docs.astral.sh/uv/).
 
 ```bash
 # Install uv (if you don't have it)
@@ -47,6 +47,34 @@ uv run extract.py --top 5
 # Verify benchmark works
 uv run bench.py
 ```
+
+## Running pi0.5
+
+To profile `openpi`'s `pi05_droid` policy from the `autokernel` repo, keep the
+`openpi/` checkout next to `autokernel/` and run:
+
+```bash
+# Recreate autokernel's uv environment on Python 3.11 if needed
+uv python pin 3.11
+uv sync
+
+# One-time setup: install openpi into the same uv env, patch transformers,
+# download the checkpoint, and convert it to PyTorch
+uv run setup_pi05_openpi.py --download --convert
+
+# Point the wrapper at the converted checkpoint
+export OPENPI_PI05_PT_CHECKPOINT=~/.cache/openpi/openpi-assets/checkpoints/pi05_droid_pytorch
+
+# Run the normal AutoKernel workflow on pi0.5
+uv run prepare.py
+uv run profile.py --model models/pi05_openpi.py --class-name PI05AutoKernelModel \
+ --input-shape 1,10 --dtype bfloat16
+uv run extract.py --top 5
+uv run bench.py
+```
+
+`--input-shape` is interpreted as `batch_size,num_denoising_steps` for
+`models/pi05_openpi.py`, so `1,10` means batch size 1 and 10 denoising steps.
 
 ## Running the Agent
 

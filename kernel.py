@@ -1,20 +1,40 @@
 """
-AutoKernel -- The file the agent modifies.
+AutoKernel -- Extracted kernel from model profiling.
+Op type: matmul
+Rank: 6 (3.5% of GPU time)
+Model shape: M=2048, N=2048, K=2048
 
-Current kernel: Matrix Multiplication
-Target metric: throughput_tflops (higher is better)
-Secondary: correctness must ALWAYS pass
-
-The agent can change anything in this file:
-  - Block sizes, warps, stages
-  - Tiling strategy, memory access patterns
-  - Split-K, persistent kernels, autotune configs
-  - Any Triton feature or trick
-
-The agent CANNOT change bench.py, reference.py, or the evaluation.
+This kernel was extracted from profiling models/pi05_openpi.py.
+The agent optimizes this to maximize throughput at the model-specific shapes.
 """
 
-KERNEL_TYPE = "matmul"  # must match a key in bench.py KERNEL_CONFIGS
+KERNEL_TYPE = "matmul"
+
+# Model-specific shapes (the shapes that matter for THIS model)
+MODEL_SHAPES = {'M': 2048, 'N': 2048, 'K': 2048}
+
+# Benchmark config (self-describing -- bench.py can load this dynamically)
+TEST_SIZES = [
+    ("model_primary", {'M': 2048, 'N': 2048, 'K': 2048}),
+    # Also test nearby sizes for robustness
+    ("model_half", {'M': 1024, 'N': 1024, 'K': 1024}),
+    ("model_double", {'M': 4096, 'N': 4096, 'K': 4096}),
+]
+
+TOLERANCES = {'float16': {'atol': 0.01, 'rtol': 0.01}, 'bfloat16': {'atol': 0.02, 'rtol': 0.02}, 'float32': {'atol': 0.0001, 'rtol': 0.0001}}
+
+
+def FLOPS_FN(s):
+    return 2 * s["M"] * s["N"] * s["K"]
+
+
+def BYTES_FN(s, dt_bytes):
+    return (s["M"] * s["K"] + s["K"] * s["N"] + s["M"] * s["N"]) * dt_bytes
+
+
+# ======================================================================
+# Triton kernel code (from kernels/matmul.py)
+# ======================================================================
 
 import torch
 import triton
